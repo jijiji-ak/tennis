@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Tennis Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #eee;
+    }
+    h1 {
+      font-size: 2rem;
+      letter-spacing: 0.3em;
+      margin-bottom: 12px;
+      color: #f0c040;
+      text-shadow: 0 0 10px #f0c04088;
+    }
+    #info {
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 16px;
+      letter-spacing: 0.1em;
+    }
+    canvas {
+      background: #16213e;
+      border: 3px solid #f0c040;
+      border-radius: 4px;
+      box-shadow: 0 0 30px #f0c04044;
+    }
+    #message {
+      margin-top: 14px;
+      font-size: 1rem;
+      color: #f0c040;
+      letter-spacing: 0.15em;
+      min-height: 1.4em;
+    }
+  </style>
+</head>
+<body>
+  <h1>TENNIS</h1>
+  <div id="info">W/S キー: 移動 &nbsp;|&nbsp; SPACE: スタート</div>
+  <canvas id="court" width="800" height="500"></canvas>
+  <div id="message">SPACE キーを押してスタート</div>
+
+  <script>
+    const canvas = document.getElementById('court');
+    const ctx = canvas.getContext('2d');
+    const msg = document.getElementById('message');
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // --- ゲーム設定 ---
+    const PADDLE_W = 14;
+    const PADDLE_H = 90;
+    const BALL_R = 9;
+    const PADDLE_SPEED = 6;
+    const WIN_SCORE = 7;
+    const NET_W = 4;
+
+    // --- 状態 ---
+    let state = 'idle'; // idle | playing | point | gameover
+    let keys = {};
+
+    let player, cpu, ball, scores;
+
+    function resetGame() {
+      scores = { player: 0, cpu: 0 };
+      resetRound(null);
+      state = 'idle';
+      msg.textContent = 'SPACE キーを押してスタート';
+    }
+
+    function resetRound(scorer) {
+      player = { x: 20, y: H / 2 - PADDLE_H / 2, w: PADDLE_W, h: PADDLE_H, dy: 0 };
+      cpu    = { x: W - 20 - PADDLE_W, y: H / 2 - PADDLE_H / 2, w: PADDLE_W, h: PADDLE_H, dy: 0 };
+
+      const dir = scorer === 'cpu' ? 1 : -1; // サーブ方向
+      const angle = (Math.random() * 0.6 - 0.3); // ±0.3 rad
+      const speed = 5.5;
+      ball = {
+        x: W / 2, y: H / 2,
+        vx: dir * speed * Math.cos(angle),
+        vy: speed * Math.sin(angle),
+        trail: []
+      };
+    }
+
+    // --- 描画 ---
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // コート背景
+      ctx.fillStyle = '#16213e';
+      ctx.fillRect(0, 0, W, H);
+
+      // コートライン
+      drawCourtLines();
+
+      // ネット
+      drawNet();
+
+      // ボールの軌跡
+      drawTrail();
+
+      // パドル
+      drawPaddle(player, '#4ecdc4');
+      drawPaddle(cpu, '#ff6b6b');
+
+      // ボール
+      drawBall();
+
+      // スコア
+      drawScore();
+    }
+
+    function drawCourtLines() {
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 2;
+      // 外枠
+      ctx.strokeRect(10, 10, W - 20, H - 20);
+      // センターライン（上下）
+      ctx.beginPath();
+      ctx.moveTo(W / 2, 10);
+      ctx.lineTo(W / 2, H - 10);
+      ctx.stroke();
+    }
+
+    function drawNet() {
+      const x = W / 2 - NET_W / 2;
+      const dashH = 16;
+      const gap = 8;
+      ctx.fillStyle = 'rgba(240,192,64,0.55)';
+      for (let y = 10; y < H - 10; y += dashH + gap) {
+        ctx.fillRect(x, y, NET_W, Math.min(dashH, H - 10 - y));
+      }
+    }
+
+    function drawTrail() {
+      ball.trail.forEach((p, i) => {
+        const alpha = (i / ball.trail.length) * 0.4;
+        const r = BALL_R * (i / ball.trail.length);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,220,80,${alpha})`;
+        ctx.fill();
+      });
+    }
+
+    function drawPaddle(p, color) {
+      const radius = 6;
+      ctx.beginPath();
+      ctx.roundRect(p.x, p.y, p.w, p.h, radius);
+      ctx.fillStyle = color;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    function drawBall() {
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(ball.x - 3, ball.y - 3, 1, ball.x, ball.y, BALL_R);
+      grad.addColorStop(0, '#fffbe0');
+      grad.addColorStop(1, '#f0c040');
+      ctx.fillStyle = grad;
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = '#f0c040';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    function drawScore() {
+      ctx.font = 'bold 48px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillText(scores.player, W / 4, 70);
+      ctx.fillText(scores.cpu,    W * 3 / 4, 70);
+
+      ctx.fillStyle = '#fff';
+      ctx.fillText(scores.player, W / 4, 68);
+      ctx.fillText(scores.cpu,    W * 3 / 4, 68);
+
+      // ラベル
+      ctx.font = '13px Courier New';
+      ctx.fillStyle = '#4ecdc4';
+      ctx.fillText('PLAYER', W / 4, 90);
+      ctx.fillStyle = '#ff6b6b';
+      ctx.fillText('CPU', W * 3 / 4, 90);
+    }
+
+    // --- 更新 ---
+    function update() {
+      if (state !== 'playing') return;
+
+      // プレイヤー操作
+      if (keys['w'] || keys['W'] || keys['ArrowUp']) {
+        player.y -= PADDLE_SPEED;
+      }
+      if (keys['s'] || keys['S'] || keys['ArrowDown']) {
+        player.y += PADDLE_SPEED;
+      }
+      player.y = clamp(player.y, 0, H - PADDLE_H);
+
+      // CPU AI
+      const cpuCenter = cpu.y + PADDLE_H / 2;
+      const ballCenter = ball.y;
+      const diff = ballCenter - cpuCenter;
+      const cpuSpeed = Math.min(Math.abs(diff), 4.5 + scores.cpu * 0.15);
+      cpu.y += Math.sign(diff) * cpuSpeed;
+      cpu.y = clamp(cpu.y, 0, H - PADDLE_H);
+
+      // ボール軌跡
+      ball.trail.push({ x: ball.x, y: ball.y });
+      if (ball.trail.length > 10) ball.trail.shift();
+
+      // ボール移動
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      // 上下壁反射
+      if (ball.y - BALL_R < 0) {
+        ball.y = BALL_R;
+        ball.vy = Math.abs(ball.vy);
+      }
+      if (ball.y + BALL_R > H) {
+        ball.y = H - BALL_R;
+        ball.vy = -Math.abs(ball.vy);
+      }
+
+      // パドル衝突
+      if (hitPaddle(ball, player) && ball.vx < 0) {
+        ball.vx = Math.abs(ball.vx) * 1.05;
+        ball.vy += (ball.y - (player.y + PADDLE_H / 2)) * 0.1;
+        ball.vx = clamp(ball.vx, 4, 18);
+        ball.vy = clamp(ball.vy, -12, 12);
+        ball.x = player.x + PADDLE_W + BALL_R;
+      }
+      if (hitPaddle(ball, cpu) && ball.vx > 0) {
+        ball.vx = -Math.abs(ball.vx) * 1.05;
+        ball.vy += (ball.y - (cpu.y + PADDLE_H / 2)) * 0.1;
+        ball.vx = clamp(ball.vx, -18, -4);
+        ball.vy = clamp(ball.vy, -12, 12);
+        ball.x = cpu.x - BALL_R;
+      }
+
+      // 得点判定
+      if (ball.x - BALL_R < 0) {
+        scores.cpu++;
+        endPoint('cpu');
+      } else if (ball.x + BALL_R > W) {
+        scores.player++;
+        endPoint('player');
+      }
+    }
+
+    function hitPaddle(b, p) {
+      return b.x - BALL_R < p.x + p.w &&
+             b.x + BALL_R > p.x &&
+             b.y - BALL_R < p.y + p.h &&
+             b.y + BALL_R > p.y;
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function endPoint(scorer) {
+      state = 'point';
+      if (scores.player >= WIN_SCORE) {
+        state = 'gameover';
+        msg.textContent = 'YOU WIN!  SPACE キーで再スタート';
+      } else if (scores.cpu >= WIN_SCORE) {
+        state = 'gameover';
+        msg.textContent = 'CPU WIN!  SPACE キーで再スタート';
+      } else {
+        msg.textContent = scorer === 'player' ? 'ポイント獲得！' : 'CPUのポイント';
+        setTimeout(() => {
+          resetRound(scorer);
+          state = 'playing';
+          msg.textContent = '';
+        }, 1200);
+      }
+    }
+
+    // --- ループ ---
+    function loop() {
+      update();
+      draw();
+
+      // アイドル時のボールアニメ
+      if (state === 'idle' || state === 'gameover') {
+        drawOverlay();
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    function drawOverlay() {
+      ctx.fillStyle = 'rgba(22,33,62,0.55)';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // --- キー入力 ---
+    document.addEventListener('keydown', e => {
+      keys[e.key] = true;
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (state === 'idle') {
+          resetRound(null);
+          state = 'playing';
+          msg.textContent = '';
+        } else if (state === 'gameover') {
+          resetGame();
+          resetRound(null);
+          state = 'playing';
+          msg.textContent = '';
+        }
+      }
+    });
+    document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    // --- 起動 ---
+    resetGame();
+    loop();
+  </script>
+</body>
+</html>
