@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Tennis Game</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -33,6 +34,34 @@
       border: 3px solid #f0c040;
       border-radius: 4px;
       box-shadow: 0 0 30px #f0c04044;
+      max-width: 100%;
+      touch-action: none;
+    }
+    #touch-controls {
+      display: none;
+      margin-top: 12px;
+      gap: 16px;
+    }
+    @media (pointer: coarse) {
+      #touch-controls { display: flex; }
+    }
+    .touch-btn {
+      background: rgba(240,192,64,0.2);
+      border: 2px solid #f0c040;
+      color: #f0c040;
+      font-size: 2rem;
+      width: 70px;
+      height: 70px;
+      border-radius: 12px;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .touch-btn:active {
+      background: rgba(240,192,64,0.4);
     }
     #message {
       margin-top: 14px;
@@ -45,9 +74,13 @@
 </head>
 <body>
   <h1>TENNIS</h1>
-  <div id="info">W/S キー: 移動 &nbsp;|&nbsp; SPACE: スタート</div>
+  <div id="info">W/S キー: 移動 &nbsp;|&nbsp; SPACE: スタート &nbsp;|&nbsp; タッチ: 画面をタップ／なぞる</div>
   <canvas id="court" width="800" height="500"></canvas>
-  <div id="message">SPACE キーを押してスタート</div>
+  <div id="message">SPACE キーを押してスタート（タブレットはタップ）</div>
+  <div id="touch-controls">
+    <div class="touch-btn" id="btn-up">▲</div>
+    <div class="touch-btn" id="btn-down">▼</div>
+  </div>
 
   <script>
     const canvas = document.getElementById('court');
@@ -201,12 +234,18 @@
     function update() {
       if (state !== 'playing') return;
 
-      // プレイヤー操作
+      // プレイヤー操作（キーボード）
       if (keys['w'] || keys['W'] || keys['ArrowUp']) {
         player.y -= PADDLE_SPEED;
       }
       if (keys['s'] || keys['S'] || keys['ArrowDown']) {
         player.y += PADDLE_SPEED;
+      }
+      // タッチ操作: 指のY座標にパドル中心を追従
+      if (touchY !== null) {
+        const targetY = touchY - PADDLE_H / 2;
+        const diff = targetY - player.y;
+        player.y += clamp(diff, -PADDLE_SPEED * 2, PADDLE_SPEED * 2);
       }
       player.y = clamp(player.y, 0, H - PADDLE_H);
 
@@ -314,19 +353,69 @@
       keys[e.key] = true;
       if (e.key === ' ') {
         e.preventDefault();
-        if (state === 'idle') {
-          resetRound(null);
-          state = 'playing';
-          msg.textContent = '';
-        } else if (state === 'gameover') {
-          resetGame();
-          resetRound(null);
-          state = 'playing';
-          msg.textContent = '';
-        }
+        startOrRestart();
       }
     });
     document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    function startOrRestart() {
+      if (state === 'idle') {
+        resetRound(null);
+        state = 'playing';
+        msg.textContent = '';
+      } else if (state === 'gameover') {
+        resetGame();
+        resetRound(null);
+        state = 'playing';
+        msg.textContent = '';
+      }
+    }
+
+    // --- タッチ操作 ---
+    // キャンバス上のタッチ: Y座標でパドルを直接操作
+    let touchY = null;
+
+    function getCanvasY(clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleY = H / rect.height;
+      return (clientY - rect.top) * scaleY;
+    }
+
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      startOrRestart();
+      touchY = getCanvasY(e.touches[0].clientY);
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      touchY = getCanvasY(e.touches[0].clientY);
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', e => {
+      e.preventDefault();
+      touchY = null;
+    }, { passive: false });
+
+    // ▲▼ ボタン（タブレット用）
+    const btnUp   = document.getElementById('btn-up');
+    const btnDown = document.getElementById('btn-down');
+
+    function addButtonTouch(btn, keyName) {
+      btn.addEventListener('touchstart', e => {
+        e.preventDefault();
+        keys[keyName] = true;
+        startOrRestart();
+      }, { passive: false });
+      btn.addEventListener('touchend', e => {
+        e.preventDefault();
+        keys[keyName] = false;
+      }, { passive: false });
+      btn.addEventListener('mousedown', () => { keys[keyName] = true; startOrRestart(); });
+      btn.addEventListener('mouseup',   () => { keys[keyName] = false; });
+    }
+    addButtonTouch(btnUp,   'ArrowUp');
+    addButtonTouch(btnDown, 'ArrowDown');
 
     // --- 起動 ---
     resetGame();
