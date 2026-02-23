@@ -74,7 +74,7 @@
 </head>
 <body>
   <h1>TENNIS</h1>
-  <div id="info">マウス: 自由移動 &nbsp;|&nbsp; W/A/S/D・矢印キー: 移動 &nbsp;|&nbsp; SPACE: スタート &nbsp;|&nbsp; タッチ: 画面をなぞる</div>
+  <div id="info">マウス: 自由移動 &nbsp;|&nbsp; W/A/S/D・矢印キー: 移動 &nbsp;|&nbsp; SPACE: スタート &nbsp;|&nbsp; 数字キー 1〜0: ステージ選択 &nbsp;|&nbsp; タッチ: 画面をなぞる</div>
   <canvas id="court" width="800" height="500"></canvas>
   <div id="message">SPACE キーを押してスタート（タブレットはタップ）</div>
   <div id="touch-controls">
@@ -97,19 +97,21 @@
     const PADDLE_SPEED = 6;
     const WIN_SCORE = 7;
     const NET_W = 4;
+    const SPECIAL_ZONE_RATIO = 0.18; // 特殊ゾーンの割合（端・中央）
+    const FLASH_DURATION = 15;       // フラッシュ持続フレーム数
 
     // --- ステージ定義 ---
     const OPPONENTS = [
-      { name: 'ネズミ',   emoji: '🐭', color: '#ccc',  speed: 2.5,  freedom: 0    },
-      { name: '猫',       emoji: '🐱', color: '#faa',  speed: 3.2,  freedom: 0    },
-      { name: '大型犬',   emoji: '🐕', color: '#ca7',  speed: 4.0,  freedom: 0    },
-      { name: 'イノシシ', emoji: '🐗', color: '#b97',  speed: 4.8,  freedom: 0.2  },
-      { name: 'ムース',   emoji: '🫎', color: '#8c6',  speed: 5.5,  freedom: 0.4  },
-      { name: '虎',       emoji: '🐯', color: '#fb4',  speed: 6.2,  freedom: 0.55 },
-      { name: 'ライオン', emoji: '🦁', color: '#e84',  speed: 7.0,  freedom: 0.65 },
-      { name: 'ゾウ',     emoji: '🐘', color: '#aaa',  speed: 7.8,  freedom: 0.75 },
-      { name: 'T-REX',    emoji: '🦖', color: '#5c9',  speed: 9.0,  freedom: 0.88 },
-      { name: '宇宙人',   emoji: '👽', color: '#8f8',  speed: 11.0, freedom: 1.0  },
+      { name: 'ネズミ',   emoji: '🐭', color: '#ccc',  speed: 2.5,  freedom: 0,    hp: 15 },
+      { name: '猫',       emoji: '🐱', color: '#faa',  speed: 3.2,  freedom: 0,    hp: 20 },
+      { name: '大型犬',   emoji: '🐕', color: '#ca7',  speed: 4.0,  freedom: 0,    hp: 25 },
+      { name: 'イノシシ', emoji: '🐗', color: '#b97',  speed: 4.8,  freedom: 0.2,  hp: 30 },
+      { name: 'ムース',   emoji: '🫎', color: '#8c6',  speed: 5.5,  freedom: 0.4,  hp: 35 },
+      { name: '虎',       emoji: '🐯', color: '#fb4',  speed: 6.2,  freedom: 0.55, hp: 40 },
+      { name: 'ライオン', emoji: '🦁', color: '#e84',  speed: 7.0,  freedom: 0.65, hp: 45 },
+      { name: 'ゾウ',     emoji: '🐘', color: '#aaa',  speed: 7.8,  freedom: 0.75, hp: 50 },
+      { name: 'T-REX',    emoji: '🦖', color: '#5c9',  speed: 9.0,  freedom: 0.88, hp: 55 },
+      { name: '宇宙人',   emoji: '👽', color: '#8f8',  speed: 11.0, freedom: 1.0,  hp: 60 },
     ];
 
     // --- 状態 ---
@@ -118,10 +120,27 @@
     let currentStage = 0;
 
     let player, cpu, ball, scores;
+    let hitParticles = [];
+    let paddleFlashTimer = 0;
+    let paddleFlashType = null; // 'edge' | 'center'
+    let ballGlowTimer = 0;
+    let ballGlowType = null;
+    let ballScale = 1.0;
+    let preboostSpeed = null; // 特殊ヒット前の速度（CPU返球時にリセット用）
+    let cpuMaxHp = 0;
+    let cpuHp = 0;
+    let cpuDestroyedTimer = 0; // 破壊状態の残りフレーム数（60fps × 3秒 = 180）
+    let cpuDamageFlash = 0;   // ダメージフラッシュの残りフレーム数
+
+    function initCpuHp() {
+      cpuMaxHp = OPPONENTS[currentStage].hp;
+      cpuHp = cpuMaxHp;
+    }
 
     function resetGame() {
       currentStage = 0;
       scores = { player: 0, cpu: 0 };
+      initCpuHp();
       resetRound(null);
       state = 'idle';
       msg.textContent = 'SPACE キーを押してスタート';
@@ -140,6 +159,44 @@
         vy: speed * Math.sin(angle),
         trail: []
       };
+      hitParticles = [];
+      paddleFlashTimer = 0;
+      paddleFlashType = null;
+      ballGlowTimer = 0;
+      ballGlowType = null;
+      ballScale = 1.0;
+      preboostSpeed = null;
+      cpuDestroyedTimer = 0; // 得点でラウンドリセット時は破壊状態を解除
+      cpuDamageFlash = 0;
+      // ※ cpuHp はラウンドをまたいで引き継ぐ（ステージリセット時のみ復元）
+    }
+
+    // --- 特殊ゾーン判定 ---
+    function checkSpecialZone(ballY, paddle) {
+      const rel = (ballY - (paddle.y + PADDLE_H / 2)) / (PADDLE_H / 2);
+      if (Math.abs(rel) > 1 - SPECIAL_ZONE_RATIO) return 'edge';
+      if (Math.abs(rel) < SPECIAL_ZONE_RATIO) return 'center';
+      return null;
+    }
+
+    // --- パーティクル生成 ---
+    function spawnHitParticles(x, y, type) {
+      const color  = type === 'edge' ? '#ff6633' : '#33ccff';
+      const spark  = type === 'edge' ? '#ffaa44' : '#88eeff';
+      const count = 20;
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+        const speed = 2.5 + Math.random() * 6;
+        hitParticles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1.0,
+          decay: 0.035 + Math.random() * 0.025,
+          color: Math.random() < 0.5 ? color : spark,
+          size: 1.5 + Math.random() * 2.5
+        });
+      }
     }
 
     // --- 描画 ---
@@ -162,9 +219,15 @@
       // ボールの軌跡
       drawTrail();
 
+      // ヒットパーティクル
+      drawHitParticles();
+
       // パドル
-      drawPaddle(player, '#4ecdc4');
-      drawPaddle(cpu, OPPONENTS[currentStage].color);
+      drawPaddle(player, '#4ecdc4', true);
+      drawPaddle(cpu, OPPONENTS[currentStage].color, false);
+
+      // CPU 破壊カウントダウン
+      drawCpuDestroyedOverlay();
 
       // ボール
       drawBall();
@@ -206,26 +269,126 @@
       });
     }
 
-    function drawPaddle(p, color) {
+    function drawZoneMarkers(p) {
+      const zoneH = PADDLE_H * SPECIAL_ZONE_RATIO;
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(p.x, p.y, p.w, p.h, 6);
+      ctx.clip();
+      const rx = p.x + p.w - 3;
+      // 上端ゾーン（橙）
+      ctx.fillStyle = 'rgba(255, 100, 50, 0.85)';
+      ctx.fillRect(rx, p.y, 3, zoneH);
+      // 中央ゾーン（シアン）
+      const cy = p.y + PADDLE_H / 2 - zoneH / 2;
+      ctx.fillStyle = 'rgba(50, 200, 255, 0.85)';
+      ctx.fillRect(rx, cy, 3, zoneH);
+      // 下端ゾーン（橙）
+      ctx.fillStyle = 'rgba(255, 100, 50, 0.85)';
+      ctx.fillRect(rx, p.y + PADDLE_H - zoneH, 3, zoneH);
+      ctx.restore();
+    }
+
+    function drawPaddle(p, color, isPlayer) {
       const radius = 6;
+
+      // CPU 破壊状態: フリッカー表示
+      if (!isPlayer && cpuDestroyedTimer > 0) {
+        if (Math.floor(cpuDestroyedTimer / 5) % 2 === 0) {
+          ctx.shadowBlur = 0;
+          return; // フリッカーOFF フレーム
+        }
+        ctx.beginPath();
+        ctx.roundRect(p.x, p.y, p.w, p.h, radius);
+        ctx.fillStyle = '#555';
+        ctx.globalAlpha = 0.55;
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#ff3333';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        return;
+      }
+
+      if (isPlayer) drawZoneMarkers(p);
+
       ctx.beginPath();
       ctx.roundRect(p.x, p.y, p.w, p.h, radius);
       ctx.fillStyle = color;
       ctx.shadowBlur = 12;
       ctx.shadowColor = color;
       ctx.fill();
+
+      // CPU ダメージフラッシュ（赤）
+      if (!isPlayer && cpuDamageFlash > 0) {
+        const t = cpuDamageFlash / 14;
+        ctx.beginPath();
+        ctx.roundRect(p.x, p.y, p.w, p.h, radius);
+        ctx.fillStyle = `rgba(255,50,50,${t * 0.85})`;
+        ctx.shadowBlur = 22 * t;
+        ctx.shadowColor = '#ff2222';
+        ctx.fill();
+      }
+
+      // プレイヤー 特殊ヒット フラッシュ
+      if (isPlayer && paddleFlashTimer > 0) {
+        const t = paddleFlashTimer / FLASH_DURATION;
+        const flashColor = paddleFlashType === 'edge' ? '#ff6633' : '#33ccff';
+        ctx.beginPath();
+        ctx.roundRect(p.x, p.y, p.w, p.h, radius);
+        ctx.fillStyle = `rgba(255,255,255,${t * 0.85})`;
+        ctx.shadowBlur = 45 * t;
+        ctx.shadowColor = flashColor;
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    }
+
+    function drawCpuDestroyedOverlay() {
+      if (cpuDestroyedTimer <= 0) return;
+      const secs = Math.ceil(cpuDestroyedTimer / 60);
+      const cx = cpu.x + PADDLE_W / 2;
+      ctx.save();
+      ctx.font = 'bold 13px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ff4444';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#ff4444';
+      ctx.fillText(`💥 ${secs}秒`, cx, cpu.y - 10);
+      ctx.restore();
+    }
+
+    function drawHitParticles() {
+      hitParticles.forEach(p => {
+        const r = p.size * Math.sqrt(p.life);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life * p.life;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = p.color;
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
     }
 
     function drawBall() {
+      const r = BALL_R * ballScale;
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
-      const grad = ctx.createRadialGradient(ball.x - 3, ball.y - 3, 1, ball.x, ball.y, BALL_R);
+      ctx.arc(ball.x, ball.y, r, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(ball.x - 3, ball.y - 3, 1, ball.x, ball.y, r);
       grad.addColorStop(0, '#fffbe0');
       grad.addColorStop(1, '#f0c040');
       ctx.fillStyle = grad;
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = '#f0c040';
+      if (ballGlowTimer > 0) {
+        const t = ballGlowTimer / 30;
+        ctx.shadowBlur = 16 + 36 * t;
+        ctx.shadowColor = ballGlowType === 'edge' ? '#ff6633' : '#33ccff';
+      } else {
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = '#f0c040';
+      }
       ctx.fill();
       ctx.shadowBlur = 0;
     }
@@ -255,6 +418,32 @@
       ctx.fillText('PLAYER', W / 4, 90);
       ctx.fillStyle = opp.color;
       ctx.fillText(opp.name, W * 3 / 4, 90);
+
+      // CPU HP バー
+      if (cpuMaxHp > 0) {
+        const hpRatio = cpuHp / cpuMaxHp;
+        const barW = 88;
+        const barH = 6;
+        const barX = W * 3 / 4 - barW / 2;
+        const barY = 97;
+        // 背景
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(barX, barY, barW, barH);
+        // HP本体
+        if (hpRatio > 0) {
+          const hpColor = hpRatio > 0.5 ? '#44ee66' : hpRatio > 0.25 ? '#ffcc33' : '#ff4444';
+          ctx.fillStyle = hpColor;
+          ctx.shadowBlur = cpuDamageFlash > 0 ? 10 : 4;
+          ctx.shadowColor = hpColor;
+          ctx.fillRect(barX, barY, barW * hpRatio, barH);
+          ctx.shadowBlur = 0;
+        }
+        // HP ラベル
+        ctx.font = '10px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText(`HP  ${cpuHp} / ${cpuMaxHp}`, W * 3 / 4, barY + barH + 11);
+      }
     }
 
     function drawOpponent() {
@@ -298,26 +487,43 @@
       player.x = clamp(player.x, 5, W / 2 - PADDLE_W);
       player.y = clamp(player.y, 0, H - PADDLE_H);
 
-      // CPU AI（ステージ別速度・横移動）
+      // CPU AI（破壊中は動けない）
       const opp = OPPONENTS[currentStage];
-      const cpuCenterY = cpu.y + PADDLE_H / 2;
-      const dyDiff = ball.y - cpuCenterY;
-      const vertSpeed = Math.min(Math.abs(dyDiff), opp.speed);
-      cpu.y += Math.sign(dyDiff) * vertSpeed;
-      cpu.y = clamp(cpu.y, 0, H - PADDLE_H);
+      if (cpuDestroyedTimer === 0) {
+        const cpuCenterY = cpu.y + PADDLE_H / 2;
+        const dyDiff = ball.y - cpuCenterY;
+        const vertSpeed = Math.min(Math.abs(dyDiff), opp.speed);
+        cpu.y += Math.sign(dyDiff) * vertSpeed;
+        cpu.y = clamp(cpu.y, 0, H - PADDLE_H);
 
-      // 横移動（freedom > 0 のステージのみ）
-      if (opp.freedom > 0) {
-        const baseX = W - 20 - PADDLE_W;
-        // ボールが右に来るとき前進、左に行くとき後退
-        const targetX = ball.vx > 0
-          ? clamp(ball.x - PADDLE_W * 3, W / 2, baseX)
-          : baseX;
-        const hdiff = targetX - cpu.x;
-        const horizSpeed = opp.freedom * opp.speed * 0.5;
-        cpu.x += clamp(hdiff, -horizSpeed, horizSpeed);
-        cpu.x = clamp(cpu.x, W / 2, W - PADDLE_W - 5);
+        // 横移動（freedom > 0 のステージのみ）
+        if (opp.freedom > 0) {
+          const baseX = W - 20 - PADDLE_W;
+          const targetX = ball.vx > 0
+            ? clamp(ball.x - PADDLE_W * 3, W / 2, baseX)
+            : baseX;
+          const hdiff = targetX - cpu.x;
+          const horizSpeed = opp.freedom * opp.speed * 0.5;
+          cpu.x += clamp(hdiff, -horizSpeed, horizSpeed);
+          cpu.x = clamp(cpu.x, W / 2, W - PADDLE_W - 5);
+        }
       }
+
+      // パーティクル・タイマー更新
+      for (let i = hitParticles.length - 1; i >= 0; i--) {
+        const p = hitParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.9;
+        p.vy *= 0.9;
+        p.life -= p.decay;
+        if (p.life <= 0) hitParticles.splice(i, 1);
+      }
+      if (paddleFlashTimer > 0) paddleFlashTimer--;
+      if (ballGlowTimer > 0) ballGlowTimer--;
+      if (ballScale > 1.0) ballScale = Math.max(1.0, ballScale - 0.055);
+      if (cpuDestroyedTimer > 0) cpuDestroyedTimer--;
+      if (cpuDamageFlash > 0) cpuDamageFlash--;
 
       // ボール軌跡
       ball.trail.push({ x: ball.x, y: ball.y });
@@ -339,18 +545,48 @@
 
       // パドル衝突
       if (hitPaddle(ball, player) && ball.vx < 0) {
-        ball.vx = Math.abs(ball.vx) * 1.13;
+        const zone = checkSpecialZone(ball.y, player);
+        if (zone) {
+          // 特殊ヒット！速度ブースト＋エフェクト
+          preboostSpeed = Math.abs(ball.vx); // ブースト前の速度を保存
+          ball.vx = preboostSpeed * 1.80;
+          ball.vx = clamp(ball.vx, 7, 25);
+          spawnHitParticles(ball.x, ball.y, zone);
+          paddleFlashTimer = FLASH_DURATION;
+          paddleFlashType = zone;
+          ballGlowTimer = 30;
+          ballGlowType = zone;
+          ballScale = 1.45;
+        } else {
+          ball.vx = Math.abs(ball.vx) * 1.13;
+          ball.vx = clamp(ball.vx, 4, 18);
+        }
         ball.vy += (ball.y - (player.y + PADDLE_H / 2)) * 0.1;
-        ball.vx = clamp(ball.vx, 4, 18);
         ball.vy = clamp(ball.vy, -12, 12);
         ball.x = player.x + PADDLE_W + BALL_R;
       }
-      if (hitPaddle(ball, cpu) && ball.vx > 0) {
-        ball.vx = -Math.abs(ball.vx) * 1.13;
+      if (hitPaddle(ball, cpu) && ball.vx > 0 && cpuDestroyedTimer === 0) {
+        // 特殊ブースト中なら元の速度に戻してから1.13倍（ブーストをリセット）
+        const wasSpecial = preboostSpeed !== null;
+        const baseVx = wasSpecial ? preboostSpeed : Math.abs(ball.vx);
+        preboostSpeed = null;
+        ball.vx = -(baseVx * 1.13);
         ball.vy += (ball.y - (cpu.y + PADDLE_H / 2)) * 0.1;
         ball.vx = clamp(ball.vx, -18, -4);
         ball.vy = clamp(ball.vy, -12, 12);
         ball.x = cpu.x - BALL_R;
+
+        // 特殊ヒットを受けた場合はダメージ
+        if (wasSpecial) {
+          cpuHp -= 5;
+          cpuDamageFlash = 14;
+          if (cpuHp <= 0) {
+            cpuDestroyedTimer = 180; // 3秒（60fps）
+            cpuHp = cpuMaxHp;        // 復活後用にHPをリセット
+            spawnHitParticles(cpu.x + PADDLE_W / 2, cpu.y + PADDLE_H / 2, 'edge');
+            spawnHitParticles(cpu.x + PADDLE_W / 2, cpu.y + PADDLE_H / 2, 'center');
+          }
+        }
       }
 
       // 得点判定
@@ -417,11 +653,25 @@
     }
 
     // --- キー入力 ---
+    const STAGE_KEYS = { '1':0, '2':1, '3':2, '4':3, '5':4, '6':5, '7':6, '8':7, '9':8, '0':9 };
+
     document.addEventListener('keydown', e => {
       keys[e.key] = true;
       if (e.key === ' ') {
         e.preventDefault();
         startOrRestart();
+      }
+      // 数字キーでステージ直接選択
+      if (e.key in STAGE_KEYS) {
+        const idx = STAGE_KEYS[e.key];
+        currentStage = idx;
+        scores = { player: 0, cpu: 0 };
+        initCpuHp();
+        resetRound(null);
+        state = 'playing';
+        const opp = OPPONENTS[idx];
+        msg.textContent = `STAGE ${idx + 1}: ${opp.emoji} ${opp.name} と対戦！`;
+        setTimeout(() => { if (state === 'playing') msg.textContent = ''; }, 1800);
       }
     });
     document.addEventListener('keyup', e => { keys[e.key] = false; });
@@ -434,6 +684,7 @@
       } else if (state === 'stageclear') {
         currentStage++;
         scores = { player: 0, cpu: 0 };
+        initCpuHp();
         resetRound(null);
         state = 'playing';
         msg.textContent = '';
