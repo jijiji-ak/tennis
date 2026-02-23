@@ -74,7 +74,7 @@
 </head>
 <body>
   <h1>TENNIS</h1>
-  <div id="info">W/S キー: 移動 &nbsp;|&nbsp; SPACE: スタート &nbsp;|&nbsp; タッチ: 画面をタップ／なぞる</div>
+  <div id="info">マウス: 自由移動 &nbsp;|&nbsp; W/A/S/D・矢印キー: 移動 &nbsp;|&nbsp; SPACE: スタート &nbsp;|&nbsp; タッチ: 画面をなぞる</div>
   <canvas id="court" width="800" height="500"></canvas>
   <div id="message">SPACE キーを押してスタート（タブレットはタップ）</div>
   <div id="touch-controls">
@@ -98,13 +98,29 @@
     const WIN_SCORE = 7;
     const NET_W = 4;
 
+    // --- ステージ定義 ---
+    const OPPONENTS = [
+      { name: 'ネズミ',   emoji: '🐭', color: '#ccc',  speed: 2.5,  freedom: 0    },
+      { name: '猫',       emoji: '🐱', color: '#faa',  speed: 3.2,  freedom: 0    },
+      { name: '大型犬',   emoji: '🐕', color: '#ca7',  speed: 4.0,  freedom: 0    },
+      { name: 'イノシシ', emoji: '🐗', color: '#b97',  speed: 4.8,  freedom: 0.2  },
+      { name: 'ムース',   emoji: '🫎', color: '#8c6',  speed: 5.5,  freedom: 0.4  },
+      { name: '虎',       emoji: '🐯', color: '#fb4',  speed: 6.2,  freedom: 0.55 },
+      { name: 'ライオン', emoji: '🦁', color: '#e84',  speed: 7.0,  freedom: 0.65 },
+      { name: 'ゾウ',     emoji: '🐘', color: '#aaa',  speed: 7.8,  freedom: 0.75 },
+      { name: 'T-REX',    emoji: '🦖', color: '#5c9',  speed: 9.0,  freedom: 0.88 },
+      { name: '宇宙人',   emoji: '👽', color: '#8f8',  speed: 11.0, freedom: 1.0  },
+    ];
+
     // --- 状態 ---
-    let state = 'idle'; // idle | playing | point | gameover
+    let state = 'idle'; // idle | playing | point | stageclear | allclear | gameover
     let keys = {};
+    let currentStage = 0;
 
     let player, cpu, ball, scores;
 
     function resetGame() {
+      currentStage = 0;
       scores = { player: 0, cpu: 0 };
       resetRound(null);
       state = 'idle';
@@ -140,12 +156,15 @@
       // ネット
       drawNet();
 
+      // 敵キャラ表示（背景）
+      drawOpponent();
+
       // ボールの軌跡
       drawTrail();
 
       // パドル
       drawPaddle(player, '#4ecdc4');
-      drawPaddle(cpu, '#ff6b6b');
+      drawPaddle(cpu, OPPONENTS[currentStage].color);
 
       // ボール
       drawBall();
@@ -212,8 +231,16 @@
     }
 
     function drawScore() {
-      ctx.font = 'bold 48px Courier New';
+      const opp = OPPONENTS[currentStage];
+
+      // ステージ番号（中央上部）
+      ctx.font = 'bold 13px Courier New';
       ctx.textAlign = 'center';
+      ctx.fillStyle = '#f0c040';
+      ctx.fillText(`STAGE  ${currentStage + 1} / ${OPPONENTS.length}`, W / 2, 22);
+
+      // スコア数字
+      ctx.font = 'bold 48px Courier New';
       ctx.fillStyle = 'rgba(255,255,255,0.15)';
       ctx.fillText(scores.player, W / 4, 70);
       ctx.fillText(scores.cpu,    W * 3 / 4, 70);
@@ -226,8 +253,21 @@
       ctx.font = '13px Courier New';
       ctx.fillStyle = '#4ecdc4';
       ctx.fillText('PLAYER', W / 4, 90);
-      ctx.fillStyle = '#ff6b6b';
-      ctx.fillText('CPU', W * 3 / 4, 90);
+      ctx.fillStyle = opp.color;
+      ctx.fillText(opp.name, W * 3 / 4, 90);
+    }
+
+    function drawOpponent() {
+      const opp = OPPONENTS[currentStage];
+      // 右半コートに大きな絵文字を半透明で表示
+      ctx.save();
+      ctx.font = '110px serif';
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = 0.38;
+      ctx.fillStyle = '#fff';
+      ctx.fillText(opp.emoji, W * 3 / 4, H / 2 + 45);
+      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     // --- 更新 ---
@@ -241,21 +281,43 @@
       if (keys['s'] || keys['S'] || keys['ArrowDown']) {
         player.y += PADDLE_SPEED;
       }
-      // タッチ操作: 指のY座標にパドル中心を追従
-      if (touchY !== null) {
-        const targetY = touchY - PADDLE_H / 2;
-        const diff = targetY - player.y;
-        player.y += clamp(diff, -PADDLE_SPEED * 2, PADDLE_SPEED * 2);
+      if (keys['a'] || keys['A'] || keys['ArrowLeft']) {
+        player.x -= PADDLE_SPEED;
       }
+      if (keys['d'] || keys['D'] || keys['ArrowRight']) {
+        player.x += PADDLE_SPEED;
+      }
+      // タッチ操作: 指の位置にパドル中心を追従
+      if (touchPos !== null) {
+        const targetX = touchPos.x - PADDLE_W / 2;
+        const targetY = touchPos.y - PADDLE_H / 2;
+        player.x += clamp(targetX - player.x, -PADDLE_SPEED * 2, PADDLE_SPEED * 2);
+        player.y += clamp(targetY - player.y, -PADDLE_SPEED * 2, PADDLE_SPEED * 2);
+      }
+      // 左半コート内に制限
+      player.x = clamp(player.x, 5, W / 2 - PADDLE_W);
       player.y = clamp(player.y, 0, H - PADDLE_H);
 
-      // CPU AI
-      const cpuCenter = cpu.y + PADDLE_H / 2;
-      const ballCenter = ball.y;
-      const diff = ballCenter - cpuCenter;
-      const cpuSpeed = Math.min(Math.abs(diff), 4.5 + scores.cpu * 0.15);
-      cpu.y += Math.sign(diff) * cpuSpeed;
+      // CPU AI（ステージ別速度・横移動）
+      const opp = OPPONENTS[currentStage];
+      const cpuCenterY = cpu.y + PADDLE_H / 2;
+      const dyDiff = ball.y - cpuCenterY;
+      const vertSpeed = Math.min(Math.abs(dyDiff), opp.speed);
+      cpu.y += Math.sign(dyDiff) * vertSpeed;
       cpu.y = clamp(cpu.y, 0, H - PADDLE_H);
+
+      // 横移動（freedom > 0 のステージのみ）
+      if (opp.freedom > 0) {
+        const baseX = W - 20 - PADDLE_W;
+        // ボールが右に来るとき前進、左に行くとき後退
+        const targetX = ball.vx > 0
+          ? clamp(ball.x - PADDLE_W * 3, W / 2, baseX)
+          : baseX;
+        const hdiff = targetX - cpu.x;
+        const horizSpeed = opp.freedom * opp.speed * 0.5;
+        cpu.x += clamp(hdiff, -horizSpeed, horizSpeed);
+        cpu.x = clamp(cpu.x, W / 2, W - PADDLE_W - 5);
+      }
 
       // ボール軌跡
       ball.trail.push({ x: ball.x, y: ball.y });
@@ -277,14 +339,14 @@
 
       // パドル衝突
       if (hitPaddle(ball, player) && ball.vx < 0) {
-        ball.vx = Math.abs(ball.vx) * 1.05;
+        ball.vx = Math.abs(ball.vx) * 1.13;
         ball.vy += (ball.y - (player.y + PADDLE_H / 2)) * 0.1;
         ball.vx = clamp(ball.vx, 4, 18);
         ball.vy = clamp(ball.vy, -12, 12);
         ball.x = player.x + PADDLE_W + BALL_R;
       }
       if (hitPaddle(ball, cpu) && ball.vx > 0) {
-        ball.vx = -Math.abs(ball.vx) * 1.05;
+        ball.vx = -Math.abs(ball.vx) * 1.13;
         ball.vy += (ball.y - (cpu.y + PADDLE_H / 2)) * 0.1;
         ball.vx = clamp(ball.vx, -18, -4);
         ball.vy = clamp(ball.vy, -12, 12);
@@ -315,11 +377,17 @@
     function endPoint(scorer) {
       state = 'point';
       if (scores.player >= WIN_SCORE) {
-        state = 'gameover';
-        msg.textContent = 'YOU WIN!  SPACE キーで再スタート';
+        if (currentStage >= OPPONENTS.length - 1) {
+          state = 'allclear';
+          msg.textContent = '全ステージ制覇！  SPACE でタイトルへ';
+        } else {
+          state = 'stageclear';
+          const next = OPPONENTS[currentStage + 1];
+          msg.textContent = `STAGE ${currentStage + 1} CLEAR!  次の相手: ${next.emoji} ${next.name}  SPACE で続ける`;
+        }
       } else if (scores.cpu >= WIN_SCORE) {
         state = 'gameover';
-        msg.textContent = 'CPU WIN!  SPACE キーで再スタート';
+        msg.textContent = `GAME OVER...  SPACE でリトライ`;
       } else {
         msg.textContent = scorer === 'player' ? 'ポイント獲得！' : 'CPUのポイント';
         setTimeout(() => {
@@ -335,8 +403,8 @@
       update();
       draw();
 
-      // アイドル時のボールアニメ
-      if (state === 'idle' || state === 'gameover') {
+      // 停止状態のオーバーレイ
+      if (state === 'idle' || state === 'gameover' || state === 'stageclear' || state === 'allclear') {
         drawOverlay();
       }
 
@@ -363,38 +431,65 @@
         resetRound(null);
         state = 'playing';
         msg.textContent = '';
-      } else if (state === 'gameover') {
-        resetGame();
+      } else if (state === 'stageclear') {
+        currentStage++;
+        scores = { player: 0, cpu: 0 };
         resetRound(null);
         state = 'playing';
         msg.textContent = '';
+      } else if (state === 'gameover') {
+        // 同じステージをリトライ
+        scores = { player: 0, cpu: 0 };
+        resetRound(null);
+        state = 'playing';
+        msg.textContent = '';
+      } else if (state === 'allclear') {
+        resetGame();
       }
     }
 
-    // --- タッチ操作 ---
-    // キャンバス上のタッチ: Y座標でパドルを直接操作
-    let touchY = null;
-
-    function getCanvasY(clientY) {
+    // --- マウス追従 ---
+    canvas.addEventListener('mousemove', e => {
       const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width;
       const scaleY = H / rect.height;
-      return (clientY - rect.top) * scaleY;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const mouseY = (e.clientY - rect.top) * scaleY;
+      // 左半コート内にマウスがある時だけ更新（右半では更新しない）
+      if (mouseX <= W / 2) {
+        player.x = clamp(mouseX - PADDLE_W / 2, 5, W / 2 - PADDLE_W);
+        player.y = clamp(mouseY - PADDLE_H / 2, 0, H - PADDLE_H);
+      }
+    });
+
+    // --- タッチ操作 ---
+    // キャンバス上のタッチ: 指の位置にパドルを追従
+    let touchPos = null;
+
+    function getCanvasPos(touch) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width;
+      const scaleY = H / rect.height;
+      return {
+        x: (touch.clientX - rect.left) * scaleX,
+        y: (touch.clientY - rect.top) * scaleY
+      };
     }
 
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
       startOrRestart();
-      touchY = getCanvasY(e.touches[0].clientY);
+      touchPos = getCanvasPos(e.touches[0]);
     }, { passive: false });
 
     canvas.addEventListener('touchmove', e => {
       e.preventDefault();
-      touchY = getCanvasY(e.touches[0].clientY);
+      touchPos = getCanvasPos(e.touches[0]);
     }, { passive: false });
 
     canvas.addEventListener('touchend', e => {
       e.preventDefault();
-      touchY = null;
+      touchPos = null;
     }, { passive: false });
 
     // ▲▼ ボタン（タブレット用）
