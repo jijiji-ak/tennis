@@ -199,13 +199,391 @@
       }
     }
 
+    // --- ステージ別背景 ---
+    function drawStageBackground(stage) {
+      const T = performance.now() / 1000;
+      ctx.save();
+      switch (stage) {
+
+        // 0: ネズミ - 路地裏（夜）
+        case 0: {
+          ctx.fillStyle = '#0d0b18'; ctx.fillRect(0, 0, W, H);
+          // レンガ壁
+          for (const [x0, x1] of [[0, W/2-4], [W/2+4, W]]) {
+            ctx.fillStyle = '#2c1a12'; ctx.fillRect(x0, 0, x1-x0, H*0.7);
+            ctx.strokeStyle = '#1a0e0a'; ctx.lineWidth = 1;
+            for (let y = 0; y < H*0.7; y += 16) {
+              const off = Math.floor(y/16) % 2 * 28;
+              for (let x = x0+off; x < x1; x += 56) ctx.strokeRect(x+1,y+1,54,14);
+            }
+          }
+          // 濡れたアスファルト
+          const gG = ctx.createLinearGradient(0,H*0.7,0,H);
+          gG.addColorStop(0,'#1c1c1c'); gG.addColorStop(1,'#111');
+          ctx.fillStyle = gG; ctx.fillRect(0,H*0.7,W,H*0.3);
+          // 水たまり
+          ctx.fillStyle = 'rgba(55,75,140,0.38)';
+          ctx.beginPath(); ctx.ellipse(W*0.25,H*0.84,55,10,0,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(W*0.72,H*0.88,38,7,0,0,Math.PI*2); ctx.fill();
+          // 街灯
+          ctx.strokeStyle = '#555'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(W*0.1,H*0.7); ctx.lineTo(W*0.1,H*0.1); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(W*0.1,H*0.1); ctx.lineTo(W*0.18,H*0.06); ctx.stroke();
+          const lG = ctx.createRadialGradient(W*0.18,H*0.06,3,W*0.18,H*0.06,90);
+          lG.addColorStop(0,'rgba(255,230,100,0.32)'); lG.addColorStop(1,'rgba(255,230,100,0)');
+          ctx.fillStyle = lG; ctx.fillRect(0,0,W/2,H*0.5);
+          ctx.fillStyle = '#ffe080'; ctx.beginPath(); ctx.arc(W*0.18,H*0.06,4,0,Math.PI*2); ctx.fill();
+          // ゴミ箱
+          ctx.fillStyle = '#404040'; ctx.fillRect(W*0.76,H*0.52,20,28);
+          ctx.fillStyle = '#333';    ctx.fillRect(W*0.74,H*0.50,24,5);
+          ctx.fillStyle = '#4a4a4a'; ctx.fillRect(W*0.83,H*0.56,16,22);
+          ctx.fillStyle = '#383838'; ctx.fillRect(W*0.815,H*0.54,20,4);
+          // ゴミ袋
+          ctx.fillStyle = '#181818';
+          ctx.beginPath(); ctx.ellipse(W*0.73,H*0.70,13,16,-0.2,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(W*0.79,H*0.72,10,13,0.3,0,Math.PI*2); ctx.fill();
+          break;
+        }
+
+        // 1: 猫 - 道路端（昼）
+        case 1: {
+          const sG = ctx.createLinearGradient(0,0,0,H*0.58);
+          sG.addColorStop(0,'#5ba0d8'); sG.addColorStop(1,'#b0d8f0');
+          ctx.fillStyle = sG; ctx.fillRect(0,0,W,H*0.58);
+          // 雲
+          ctx.fillStyle = 'rgba(255,255,255,0.88)';
+          for (const [cx,cy,r] of [[W*0.18,H*0.1,28],[W*0.26,H*0.08,20],[W*0.62,H*0.16,26],[W*0.69,H*0.14,18]])
+            { ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); }
+          // ビル
+          for (const [bx,bw,bh,bc] of [[0,55,H*0.42,'#7a8fa0'],[50,40,H*0.35,'#8a9fb0'],[W-55,50,H*0.40,'#7a8fa0'],[W-100,38,H*0.33,'#909fae']]) {
+            ctx.fillStyle = bc; ctx.fillRect(bx, H*0.58-bh, bw, bh);
+            ctx.fillStyle = 'rgba(200,230,255,0.55)';
+            for (let wy=H*0.58-bh+8; wy<H*0.58-10; wy+=16)
+              for (let wx=bx+6; wx<bx+bw-8; wx+=14) ctx.fillRect(wx,wy,8,9);
+          }
+          // 歩道
+          ctx.fillStyle = '#b2b2a0'; ctx.fillRect(0,H*0.58,W,H*0.09);
+          ctx.strokeStyle = '#a0a090'; ctx.lineWidth = 1;
+          for (let x=0; x<W; x+=42) { ctx.beginPath(); ctx.moveTo(x,H*0.58); ctx.lineTo(x,H*0.67); ctx.stroke(); }
+          // 道路
+          ctx.fillStyle = '#3a3a3a'; ctx.fillRect(0,H*0.67,W,H*0.33);
+          ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3; ctx.setLineDash([28,18]);
+          ctx.beginPath(); ctx.moveTo(0,H*0.78); ctx.lineTo(W,H*0.78); ctx.stroke();
+          ctx.setLineDash([]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(0,H*0.67); ctx.lineTo(W,H*0.67); ctx.stroke();
+          // 街灯
+          ctx.strokeStyle = '#666'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.moveTo(W*0.35,H*0.67); ctx.lineTo(W*0.35,H*0.2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(W*0.35,H*0.2); ctx.lineTo(W*0.43,H*0.16); ctx.stroke();
+          ctx.fillStyle = '#ffee88'; ctx.beginPath(); ctx.arc(W*0.43,H*0.16,5,0,Math.PI*2); ctx.fill();
+          break;
+        }
+
+        // 2: 大型犬 - 公園
+        case 2: {
+          const sG2 = ctx.createLinearGradient(0,0,0,H*0.52);
+          sG2.addColorStop(0,'#4898e0'); sG2.addColorStop(1,'#9ad0ee');
+          ctx.fillStyle = sG2; ctx.fillRect(0,0,W,H*0.52);
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          for (const [cx,cy,r] of [[W*0.2,H*0.1,26],[W*0.28,H*0.08,18],[W*0.65,H*0.14,24],[W*0.72,H*0.12,16]])
+            { ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); }
+          // 芝生
+          const gG2 = ctx.createLinearGradient(0,H*0.52,0,H);
+          gG2.addColorStop(0,'#4a9a38'); gG2.addColorStop(1,'#3a7828');
+          ctx.fillStyle = gG2; ctx.fillRect(0,H*0.52,W,H*0.48);
+          // 砂利道
+          ctx.fillStyle = '#c8b880'; ctx.fillRect(W*0.32,H*0.52,W*0.36,H*0.48);
+          ctx.strokeStyle = '#b8a870'; ctx.lineWidth = 1; ctx.strokeRect(W*0.32,H*0.52,W*0.36,H*0.48);
+          // ベンチ
+          ctx.fillStyle = '#8b6914';
+          ctx.fillRect(W*0.68,H*0.67,52,6); ctx.fillRect(W*0.68,H*0.61,52,5);
+          ctx.fillRect(W*0.72,H*0.66,5,12); ctx.fillRect(W*0.89,H*0.66,5,12);
+          // 遠景の木
+          ctx.fillStyle = '#3a7030';
+          for (const [tx,tr] of [[W*0.05,18],[W*0.12,14],[W*0.88,16],[W*0.94,20]])
+            { ctx.beginPath(); ctx.arc(tx,H*0.52-tr,tr,0,Math.PI*2); ctx.fill(); }
+          // 手前の木
+          for (const [tx,tsz] of [[W*0.04,34],[W*0.96,30]]) {
+            ctx.fillStyle = '#2d5e2a'; ctx.beginPath(); ctx.arc(tx,H*0.52-tsz*0.7,tsz,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#6b4c1e'; ctx.fillRect(tx-5,H*0.52-tsz*0.3,10,tsz*0.5);
+          }
+          break;
+        }
+
+        // 3: イノシシ - 山道
+        case 3: {
+          const sG3 = ctx.createLinearGradient(0,0,0,H*0.5);
+          sG3.addColorStop(0,'#4a6fa5'); sG3.addColorStop(1,'#8ab0ce');
+          ctx.fillStyle = sG3; ctx.fillRect(0,0,W,H*0.5);
+          // 山（奥から手前）
+          for (const [pts,col] of [
+            [[0,H*0.5,W*0.15,H*0.18,W*0.32,H*0.5],'#6888a8'],
+            [[W*0.18,H*0.5,W*0.38,H*0.12,W*0.58,H*0.5],'#7a98b8'],
+            [[W*0.42,H*0.5,W*0.62,H*0.2,W*0.82,H*0.5],'#8898b8'],
+            [[W*0.68,H*0.5,W*0.86,H*0.16,W,H*0.5],'#7890ba']
+          ]) {
+            ctx.fillStyle = col; ctx.beginPath();
+            ctx.moveTo(pts[0],pts[1]); ctx.lineTo(pts[2],pts[3]); ctx.lineTo(pts[4],pts[5]);
+            ctx.closePath(); ctx.fill();
+          }
+          // 森
+          const fG = ctx.createLinearGradient(0,H*0.5,0,H*0.72);
+          fG.addColorStop(0,'#2a5520'); fG.addColorStop(1,'#1e3d18');
+          ctx.fillStyle = fG; ctx.fillRect(0,H*0.5,W,H*0.22);
+          // 松の木
+          ctx.fillStyle = '#1a3d10';
+          for (const [tx,th] of [[W*0.06,40],[W*0.13,50],[W*0.2,35],[W*0.78,44],[W*0.86,38],[W*0.93,50]]) {
+            ctx.beginPath(); ctx.moveTo(tx,H*0.72-th); ctx.lineTo(tx+13,H*0.72); ctx.lineTo(tx-13,H*0.72); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(tx,H*0.72-th*1.45); ctx.lineTo(tx+9,H*0.72-th*0.4); ctx.lineTo(tx-9,H*0.72-th*0.4); ctx.closePath(); ctx.fill();
+          }
+          // 土道
+          ctx.fillStyle = '#8a6a40';
+          ctx.beginPath(); ctx.moveTo(W*0.36,H*0.72); ctx.lineTo(W*0.42,H); ctx.lineTo(W*0.58,H); ctx.lineTo(W*0.64,H*0.72); ctx.fill();
+          const gG3 = ctx.createLinearGradient(0,H*0.72,0,H);
+          gG3.addColorStop(0,'#5a7840'); gG3.addColorStop(1,'#4a6030');
+          ctx.fillStyle = gG3; ctx.fillRect(0,H*0.72,W,H*0.28);
+          // 岩
+          ctx.fillStyle = '#808080';
+          for (const [rx,ry,rw,rh] of [[W*0.2,H*0.78,20,14],[W*0.72,H*0.82,16,12],[W*0.5,H*0.9,22,15]])
+            { ctx.beginPath(); ctx.ellipse(rx,ry,rw,rh,0,0,Math.PI*2); ctx.fill(); }
+          break;
+        }
+
+        // 4: ムース - 湿地帯
+        case 4: {
+          const sG4 = ctx.createLinearGradient(0,0,0,H*0.45);
+          sG4.addColorStop(0,'#7a9090'); sG4.addColorStop(1,'#a8bfbf');
+          ctx.fillStyle = sG4; ctx.fillRect(0,0,W,H*0.45);
+          // 遠景の木
+          ctx.fillStyle = '#3a5a4a';
+          for (const [tx,tw,th] of [[0,28,H*0.18],[22,22,H*0.14],[W-28,26,H*0.16],[W-50,20,H*0.12]])
+            ctx.fillRect(tx,H*0.45-th,tw,th);
+          // 水面
+          const wG4 = ctx.createLinearGradient(0,H*0.45,0,H);
+          wG4.addColorStop(0,'#4a6a6a'); wG4.addColorStop(1,'#2a4a4a');
+          ctx.fillStyle = wG4; ctx.fillRect(0,H*0.45,W,H*0.55);
+          // 水面の波紋
+          ctx.strokeStyle = 'rgba(180,210,210,0.28)'; ctx.lineWidth = 1;
+          for (const [rx,ry,rr] of [[W*0.2,H*0.6,32],[W*0.62,H*0.75,26],[W*0.85,H*0.55,20]])
+            { ctx.beginPath(); ctx.ellipse(rx,ry,rr,rr*0.28,0,0,Math.PI*2); ctx.stroke(); }
+          // ガマの穂（葦）
+          ctx.lineWidth = 3;
+          for (const [rx,ry] of [[W*0.07,H*0.5],[W*0.11,H*0.48],[W*0.15,H*0.52],[W*0.78,H*0.49],[W*0.82,H*0.52],[W*0.87,H*0.47]]) {
+            ctx.strokeStyle = '#6a5a30';
+            ctx.beginPath(); ctx.moveTo(rx,ry+38); ctx.lineTo(rx,ry); ctx.stroke();
+            ctx.fillStyle = '#4a3a20'; ctx.beginPath(); ctx.ellipse(rx,ry,4,11,0,0,Math.PI*2); ctx.fill();
+          }
+          // 霧
+          const mG = ctx.createLinearGradient(0,H*0.45,0,H*0.65);
+          mG.addColorStop(0,'rgba(180,200,200,0.32)'); mG.addColorStop(1,'rgba(180,200,200,0)');
+          ctx.fillStyle = mG; ctx.fillRect(0,H*0.45,W,H*0.28);
+          break;
+        }
+
+        // 5: 虎 - 暗い竹林
+        case 5: {
+          ctx.fillStyle = '#050e07'; ctx.fillRect(0,0,W,H);
+          ctx.fillStyle = '#0a180c'; ctx.fillRect(0,H*0.72,W,H*0.28);
+          // 月光
+          const mG5 = ctx.createRadialGradient(W*0.74,H*0.14,5,W*0.74,H*0.14,55);
+          mG5.addColorStop(0,'rgba(215,225,195,0.48)'); mG5.addColorStop(1,'rgba(215,225,195,0)');
+          ctx.fillStyle = mG5; ctx.fillRect(W/2,0,W/2,H*0.4);
+          ctx.fillStyle = 'rgba(215,225,190,0.55)';
+          ctx.beginPath(); ctx.arc(W*0.74,H*0.14,20,0,Math.PI*2); ctx.fill();
+          // 竹の幹
+          for (const [bx,bw,bc] of [
+            [W*0.03,10,'#1a3a1a'],[W*0.09,8,'#152e15'],[W*0.15,11,'#1e401e'],[W*0.2,9,'#163016'],[W*0.27,10,'#183018'],
+            [W*0.56,10,'#1a3a1a'],[W*0.63,9,'#153015'],[W*0.7,11,'#1e401e'],[W*0.77,8,'#182e18'],[W*0.84,10,'#163016'],[W*0.91,9,'#1a3a1a'],[W*0.97,8,'#152e15']
+          ]) {
+            ctx.fillStyle = bc; ctx.fillRect(bx-bw/2,0,bw,H);
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+            for (let y=H*0.12; y<H; y+=42) { ctx.beginPath(); ctx.moveTo(bx-bw/2,y); ctx.lineTo(bx+bw/2,y); ctx.stroke(); }
+          }
+          // 光の筋
+          ctx.fillStyle = 'rgba(170,210,150,0.04)';
+          for (const lx of [W*0.22,W*0.48,W*0.72]) {
+            ctx.beginPath(); ctx.moveTo(lx-18,0); ctx.lineTo(lx+18,0); ctx.lineTo(lx+38,H); ctx.lineTo(lx-38,H); ctx.closePath(); ctx.fill();
+          }
+          break;
+        }
+
+        // 6: ライオン - サバンナの草原
+        case 6: {
+          const sG6 = ctx.createLinearGradient(0,0,0,H*0.6);
+          sG6.addColorStop(0,'#180e58'); sG6.addColorStop(0.3,'#c03818'); sG6.addColorStop(0.7,'#f07828'); sG6.addColorStop(1,'#f0bf58');
+          ctx.fillStyle = sG6; ctx.fillRect(0,0,W,H*0.6);
+          // 太陽
+          ctx.fillStyle = '#ffdd00'; ctx.shadowBlur = 28; ctx.shadowColor = '#ff9900';
+          ctx.beginPath(); ctx.arc(W/2,H*0.56,26,0,Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+          // 地平線のアカシア（影絵）
+          ctx.fillStyle = '#130900';
+          for (const [tx,tw,th] of [[W*0.08,52,H*0.38],[W*0.92,46,H*0.34]]) {
+            ctx.fillRect(tx-3,H*0.6-th,6,th);
+            ctx.beginPath(); ctx.ellipse(tx,H*0.6-th-6,tw/2,14,0,0,Math.PI*2); ctx.fill();
+          }
+          // サバンナの地面
+          const grG6 = ctx.createLinearGradient(0,H*0.6,0,H);
+          grG6.addColorStop(0,'#c88820'); grG6.addColorStop(0.4,'#a07010'); grG6.addColorStop(1,'#806010');
+          ctx.fillStyle = grG6; ctx.fillRect(0,H*0.6,W,H*0.4);
+          // 草の穂先
+          ctx.strokeStyle = '#d4a030'; ctx.lineWidth = 2;
+          for (let gx=8; gx<W; gx+=16) {
+            const gy = H*0.6 + Math.sin(gx*0.3)*4 + 4;
+            ctx.beginPath(); ctx.moveTo(gx,gy+10); ctx.lineTo(gx-4,gy); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(gx,gy+10); ctx.lineTo(gx+4,gy); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(gx,gy+10); ctx.lineTo(gx,gy-2); ctx.stroke();
+          }
+          // 手前アカシア（影絵、左右）
+          ctx.fillStyle = '#0c0600';
+          for (const [tx,tw] of [[-4,80],[W+4,88]]) {
+            ctx.fillRect(tx-4,H*0.6-H*0.46,8,H*0.46);
+            ctx.beginPath(); ctx.ellipse(tx,H*0.6-H*0.46,tw/2,16,0,0,Math.PI*2); ctx.fill();
+          }
+          break;
+        }
+
+        // 7: ゾウ - サバンナの水辺
+        case 7: {
+          const sG7 = ctx.createLinearGradient(0,0,0,H*0.55);
+          sG7.addColorStop(0,'#280a4e'); sG7.addColorStop(0.38,'#881e8a'); sG7.addColorStop(0.8,'#e05838'); sG7.addColorStop(1,'#f09050');
+          ctx.fillStyle = sG7; ctx.fillRect(0,0,W,H*0.55);
+          ctx.fillStyle = '#ffcc44'; ctx.shadowBlur = 18; ctx.shadowColor = '#ff8800';
+          ctx.beginPath(); ctx.arc(W/2,H*0.52,20,0,Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+          // 遠景の木（影）
+          ctx.fillStyle = '#140800';
+          for (const [tx,th] of [[W*0.05,H*0.3],[W*0.11,H*0.24],[W*0.88,H*0.27],[W*0.95,H*0.21]]) {
+            ctx.fillRect(tx-4,H*0.55-th,8,th); ctx.beginPath(); ctx.ellipse(tx,H*0.55-th-4,24,10,0,0,Math.PI*2); ctx.fill();
+          }
+          // 水面
+          const wG7 = ctx.createLinearGradient(0,H*0.55,0,H);
+          wG7.addColorStop(0,'#4a2e80'); wG7.addColorStop(0.3,'#3a2870'); wG7.addColorStop(1,'#1a0e40');
+          ctx.fillStyle = wG7; ctx.fillRect(0,H*0.55,W,H*0.45);
+          // 太陽の反射
+          const refG = ctx.createLinearGradient(0,H*0.55,0,H*0.85);
+          refG.addColorStop(0,'rgba(255,200,60,0.38)'); refG.addColorStop(1,'rgba(255,200,60,0)');
+          ctx.fillStyle = refG;
+          ctx.beginPath(); ctx.moveTo(W*0.43,H*0.55); ctx.lineTo(W*0.57,H*0.55); ctx.lineTo(W*0.72,H*0.85); ctx.lineTo(W*0.28,H*0.85); ctx.fill();
+          // 水平線
+          ctx.strokeStyle = 'rgba(200,180,255,0.22)'; ctx.lineWidth = 1;
+          for (let wy=H*0.58; wy<H; wy+=16) { ctx.beginPath(); ctx.moveTo(0,wy); ctx.lineTo(W,wy); ctx.stroke(); }
+          // 葦（ガマ）
+          ctx.lineWidth = 2;
+          for (const [rx,rh] of [[W*0.05,H*0.22],[W*0.09,H*0.17],[W*0.13,H*0.24],[W*0.82,H*0.2],[W*0.87,H*0.25],[W*0.92,H*0.18]]) {
+            ctx.strokeStyle = '#3a2a10';
+            ctx.beginPath(); ctx.moveTo(rx,H*0.55+rh*0.5); ctx.lineTo(rx,H*0.55-rh); ctx.stroke();
+            ctx.fillStyle = '#2a1a08'; ctx.beginPath(); ctx.ellipse(rx,H*0.55-rh,3,10,0,0,Math.PI*2); ctx.fill();
+          }
+          break;
+        }
+
+        // 8: T-REX - 噴火する火山・ジュラ紀
+        case 8: {
+          const sG8 = ctx.createLinearGradient(0,0,0,H*0.56);
+          sG8.addColorStop(0,'#0d0400'); sG8.addColorStop(0.3,'#2a0800'); sG8.addColorStop(0.7,'#601a00'); sG8.addColorStop(1,'#8a2800');
+          ctx.fillStyle = sG8; ctx.fillRect(0,0,W,H*0.56);
+          // 火山
+          ctx.fillStyle = '#1a0800';
+          ctx.beginPath(); ctx.moveTo(W*0.28,H*0.56); ctx.lineTo(W*0.46,H*0.04); ctx.lineTo(W*0.62,H*0.56); ctx.fill();
+          // 溶岩グロー
+          const lvG = ctx.createRadialGradient(W*0.5,H*0.06,4,W*0.5,H*0.06,65);
+          lvG.addColorStop(0,'rgba(255,120,0,0.85)'); lvG.addColorStop(0.4,'rgba(255,60,0,0.4)'); lvG.addColorStop(1,'rgba(255,0,0,0)');
+          ctx.fillStyle = lvG; ctx.fillRect(W*0.28,0,W*0.44,H*0.28);
+          // 溶岩流
+          ctx.shadowBlur = 8; ctx.shadowColor = '#ff5000';
+          ctx.strokeStyle = '#ff5500'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.moveTo(W*0.46,H*0.06); ctx.bezierCurveTo(W*0.44,H*0.2,W*0.4,H*0.36,W*0.38,H*0.56); ctx.stroke();
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(W*0.52,H*0.07); ctx.bezierCurveTo(W*0.54,H*0.22,W*0.58,H*0.38,W*0.57,H*0.56); ctx.stroke();
+          ctx.shadowBlur = 0;
+          // 灰の粒子（アニメーション）
+          ctx.fillStyle = 'rgba(90,70,45,0.6)';
+          for (let i=0; i<20; i++) {
+            const ax = W*0.28 + W*0.44*((i*0.18 + T*0.15) % 1);
+            const ay = (T*55 + i*30) % (H*0.54);
+            ctx.beginPath(); ctx.arc(ax,ay,i%3===0?2.5:1.5,0,Math.PI*2); ctx.fill();
+          }
+          // ジュラ紀のシダ
+          ctx.fillStyle = '#0a1a06';
+          for (const [fx,fd] of [[W*0.02,1],[W*0.98,-1]]) {
+            for (let i=0; i<5; i++) {
+              const fy = H*0.58 + i*H*0.08;
+              ctx.beginPath(); ctx.moveTo(fx,fy); ctx.bezierCurveTo(fx+fd*28,fy-18,fx+fd*48,fy-8,fx+fd*58,fy-3); ctx.bezierCurveTo(fx+fd*48,fy+6,fx+fd*28,fy+10,fx,fy+4); ctx.fill();
+            }
+          }
+          // 地面
+          const gG8 = ctx.createLinearGradient(0,H*0.56,0,H);
+          gG8.addColorStop(0,'#2c1000'); gG8.addColorStop(1,'#1a0800');
+          ctx.fillStyle = gG8; ctx.fillRect(0,H*0.56,W,H*0.44);
+          // 地割れ（溶岩）
+          ctx.strokeStyle = '#ff4400'; ctx.lineWidth = 2; ctx.shadowBlur = 8; ctx.shadowColor = '#ff4400';
+          ctx.beginPath(); ctx.moveTo(W*0.08,H); ctx.lineTo(W*0.28,H*0.74); ctx.lineTo(W*0.5,H*0.86); ctx.lineTo(W*0.72,H*0.72); ctx.lineTo(W*0.92,H); ctx.stroke();
+          ctx.shadowBlur = 0;
+          break;
+        }
+
+        // 9: 宇宙人 - 宇宙とUFO
+        case 9: {
+          ctx.fillStyle = '#000008'; ctx.fillRect(0,0,W,H);
+          // 星（瞬き）
+          for (let i=0; i<130; i++) {
+            const sx = (i*137+59) % W, sy = (i*97+31) % H;
+            const br = Math.sin(T*2.2+i)*0.5+0.5;
+            const sr = i%4===0 ? 2 : 1;
+            ctx.fillStyle = `rgba(255,255,255,${0.35+br*0.65})`;
+            ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2); ctx.fill();
+          }
+          // 星雲
+          const nb1 = ctx.createRadialGradient(W*0.25,H*0.3,8,W*0.25,H*0.3,120);
+          nb1.addColorStop(0,'rgba(100,0,180,0.18)'); nb1.addColorStop(1,'rgba(100,0,180,0)');
+          ctx.fillStyle = nb1; ctx.fillRect(0,0,W,H);
+          const nb2 = ctx.createRadialGradient(W*0.72,H*0.62,8,W*0.72,H*0.62,100);
+          nb2.addColorStop(0,'rgba(0,80,200,0.18)'); nb2.addColorStop(1,'rgba(0,80,200,0)');
+          ctx.fillStyle = nb2; ctx.fillRect(0,0,W,H);
+          // 惑星（左側）
+          const plG = ctx.createRadialGradient(W*0.1,H*0.35,4,W*0.1,H*0.35,34);
+          plG.addColorStop(0,'#e8d080'); plG.addColorStop(0.6,'#c09038'); plG.addColorStop(1,'#806020');
+          ctx.fillStyle = plG; ctx.beginPath(); ctx.arc(W*0.1,H*0.35,34,0,Math.PI*2); ctx.fill();
+          ctx.strokeStyle = 'rgba(200,160,60,0.55)'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.ellipse(W*0.1,H*0.35,54,11,-0.3,0,Math.PI*2); ctx.stroke();
+          // UFO
+          const uCx = W*0.82, uCy = H*0.22;
+          const uG = ctx.createRadialGradient(uCx,uCy,2,uCx,uCy,22);
+          uG.addColorStop(0,'rgba(80,255,80,0.9)'); uG.addColorStop(1,'rgba(80,255,80,0)');
+          ctx.fillStyle = uG; ctx.fillRect(uCx-44,uCy-32,88,64);
+          ctx.fillStyle = '#c0c0d0'; ctx.shadowBlur = 10; ctx.shadowColor = '#66ff66';
+          ctx.beginPath(); ctx.ellipse(uCx,uCy,38,11,0,0,Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#8888cc'; ctx.beginPath(); ctx.ellipse(uCx,uCy-5,17,13,0,0,Math.PI*2); ctx.fill();
+          ctx.shadowBlur = 0;
+          const bmG = ctx.createLinearGradient(0,uCy+11,0,uCy+80);
+          bmG.addColorStop(0,'rgba(80,255,80,0.3)'); bmG.addColorStop(1,'rgba(80,255,80,0)');
+          ctx.fillStyle = bmG;
+          ctx.beginPath(); ctx.moveTo(uCx-20,uCy+11); ctx.lineTo(uCx+20,uCy+11); ctx.lineTo(uCx+42,uCy+80); ctx.lineTo(uCx-42,uCy+80); ctx.fill();
+          // 流れ星
+          const mT = (T*0.5) % 1;
+          ctx.strokeStyle = `rgba(255,255,200,${0.8*(1-mT)})`; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(W*mT,H*0.08+mT*H*0.3); ctx.lineTo(W*mT-28,H*0.08+mT*H*0.3-14); ctx.stroke();
+          // 宇宙の地面（グリッド）
+          const gG9 = ctx.createLinearGradient(0,H*0.76,0,H);
+          gG9.addColorStop(0,'#0a0a1e'); gG9.addColorStop(1,'#050510');
+          ctx.fillStyle = gG9; ctx.fillRect(0,H*0.76,W,H*0.24);
+          ctx.strokeStyle = 'rgba(50,50,200,0.28)'; ctx.lineWidth = 1;
+          for (let gx=0; gx<W; gx+=40) { ctx.beginPath(); ctx.moveTo(gx,H*0.76); ctx.lineTo(gx,H); ctx.stroke(); }
+          for (let gy=H*0.76; gy<H; gy+=24) { ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+          break;
+        }
+
+        default:
+          ctx.fillStyle = '#16213e'; ctx.fillRect(0,0,W,H);
+      }
+      ctx.restore();
+    }
+
     // --- 描画 ---
     function draw() {
       ctx.clearRect(0, 0, W, H);
 
-      // コート背景
-      ctx.fillStyle = '#16213e';
-      ctx.fillRect(0, 0, W, H);
+      // ステージ別背景
+      drawStageBackground(currentStage);
 
       // コートライン
       drawCourtLines();
